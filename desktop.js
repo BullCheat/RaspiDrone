@@ -1,4 +1,5 @@
 require('./common.js');
+var io = require('socket.io').listen(1050);
 
 var server = net.createServer(function(socket) {
   console.log("GENERAL TCP " + PORT_GENERAL + " CONNECTED");
