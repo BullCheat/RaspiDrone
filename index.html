@@ -1,8 +1,12 @@
 <html>
   <head>
     <title>Contrôle</title>
-    <meta content="">
-    <style></style>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf8">
+    <script src="socket.io.js"></script>
+    <script>
+      var gp = (navigator.getGamepads && navigator.getGamepads()) || (navigator.webkitGetGamepads && navigator.webkitGetGamepads());
+      console.log (typeof gp)
+    </script>
   </head>
   <body></body>
 </html>
