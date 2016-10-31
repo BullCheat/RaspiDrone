@@ -42,16 +42,12 @@ server.on('error', (err) => {
 server.listen(PORT_GENERAL, '0.0.0.0', () => {
   console.log("GENERAL TCP " + PORT_GENERAL + " BOUND");
 });
-// var x = true;
-var c = (x) => {
-  return 500 * (x+3);
-}
+
 io.on("connection", (socket) => {
   socket.on("trame", (trame) => {
-    if (typeof device !== 'undefined') {
+    if (typeof socket_general !== 'undefined' && socket_general && !socket_general.destroyed) {
       //socket_general.write("trame" + JSON.stringify([parseInt(500*(4+trame.throttle)), parseInt(500*(4+trame.ailerons)), parseInt(500*(4+trame.profondeur)), parseInt(500*(4+trame.switch)), parseInt(500*(4+trame.molette))]));
-      // x = false;
-      device.setRawRc({roll: c(trame.ailerons),pitch:c(trame.profondeur),yaw:c(0),throttle:c(trame.throttle),aux1:trame.switch*1000+1000,aux2:c(trame.molette),aux3:c(0),aux4:c(0)});
+      
     }
   });
 });
@@ -60,8 +56,7 @@ var TcpServer = require('multiwii-msp').TcpServer;
 var tserver = new TcpServer(1001, true);
 tserver.on('register', (key,device) => {
   device.on('open', () => {
-    global.device = device;
   });
-  device.on('update', (u) => {/*console.log(u);*/});
-  device.on('close', () => { if(global.device === device) global.device = null; });
+  device.on('update', (u) => {console.log(u);});
+  device.on('close', () => {console.log("c");});
 });
