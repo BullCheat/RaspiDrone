@@ -1,0 +1,15 @@
+{
+  "uploadOnSave": true,
+  "useAtomicWrites": false,
+  "deleteLocal": false,
+  "hostname": "raspberrypi.local",
+  "port": "22",
+  "target": "/home/pi",
+  "ignore": [
+    ".remote-sync.json"
+  ],
+  "username": "pi",
+  "keyfile": "/home/alexandre/.ssh/id_rsa",
+  "watch": [],
+  "transport": "scp"
+}

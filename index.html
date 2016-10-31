@@ -3,10 +3,83 @@
     <title>Contrôle</title>
     <meta http-equiv="Content-Type" content="text/html; charset=utf8">
     <script src="socket.io.js"></script>
-    <script>
-      var gp = (navigator.getGamepads && navigator.getGamepads()) || (navigator.webkitGetGamepads && navigator.webkitGetGamepads());
-      console.log (typeof gp)
-    </script>
+    <script src="jquery-3.1.1.js"></script>
   </head>
-  <body></body>
+  <body>
+    <h1>Contrôle distant</h1>
+    Trames/seconde : <span class="trames">…</span><br>
+    <pre id="logbox">
+    </pre>
+
+    <script>
+    var axis = ["direction","profondeur","molette",null,null,"ailerons","throttle"];
+    var tps = [];
+    var socket = io.connect("127.0.0.1:1050", {'reconnection':true, 'reconnectionDelay': 100, 'reconnectionMaxDelay': 100, 'reconnectionAttempts':100000000});
+    socket.on("connect", function() {
+      log("socket.io connected");
+    });
+    socket.on("disconnect", function() {
+      log("socket.io <b>disconnected</b>");
+    });
+    function findjoystick() {
+      //if (joystick != null) return;
+      var gp = (navigator.getGamepads && navigator.getGamepads()) || (navigator.webkitGetGamepads && navigator.webkitGetGamepads());
+      for (var i in gp) {
+        if (gp.hasOwnProperty(i) && gp[i]) {
+          var id = gp[i].id;
+          if (id === "FeiYing Model GOLD WARRIOR SIM -  AeroFly1.1 Controller (Vendor: 127f Product: e007)") {
+            if (!joystick) log ("Joystick compatible trouvé !");
+            joystick = gp[i];
+            break;
+          }
+        }
+      }
+    }
+    //setInterval(findjoystick, 250);
+    function transmit() {
+      findjoystick();
+      if (joystick && socket.connected) {
+        var trame = {};
+        for (var i in axis) {
+          if (axis[i] != null) {
+            trame[axis[i]] = joystick.axes[i];
+            console.log(axis[i] + " = " + trame[axis[i]]);
+          }
+        }
+        trame.switch = joystick.buttons[0].value;
+        socket.emit("trame", trame);
+        var ts =Date.now();
+        tps.push(ts);
+      }
+    }
+    function update() {
+        window.requestAnimationFrame(transmit);
+    }
+    setInterval(update, 50);
+    setInterval(() => {
+      var ts = Date.now();
+      var c = 0;
+      for (var i = 0; i < tps.length; i++) {
+        if (tps[i] > ts-1000) {
+          c++;
+        }
+      }
+      $(".trames").html(c);
+      if (tps.length > 10000) tps.length = 0;
+    },50);
+    var joystick;
+    function log(w) {
+      $("#logbox").html($("#logbox").html() + "\n" + w);
+      console.log(w);
+    }
+
+    var gp = (navigator.getGamepads && navigator.getGamepads()) || (navigator.webkitGetGamepads && navigator.webkitGetGamepads());
+    var compatible = gp.toString() === "[object GamepadList]";
+    log("Navigateur " + (compatible ? "compatible": "<b>INCOMPATIBLE</b>"));
+    if (!compatible) throw "Object joystick bizzare " + gp;
+    log ("Recherche d'un joystick…");
+    findjoystick();
+
+    </script>
+  </body>
 </html>
