@@ -1,20 +1,12 @@
 require('./common.js');
 
-var serialport = require("serialport");
-var general = {failed:0};
-var sp = new serialport.SerialPort('/dev/ttyS0', {
-  parser: serialport.parsers.readline("\n"),
-  baudrate: 115200
-});
-var client;
+// var client;
 
 function connectGeneral() {
-
-  client = new global.net.Socket();
-  client.setNoDelay(true);
+  global.client = new global.net.Socket();
   client.connect(PORT_GENERAL, DESKTOP_IP, function() {
     console.log("GENERAL TCP " + PORT_GENERAL + " CONNECTED");
-    client.write("Hello world!");
+    client.write("Hello world!\n");
 
     general.failed = 0;
   });
@@ -24,8 +16,6 @@ function connectGeneral() {
     var t = 'trame';
     if (str.startsWith(t)) {
       str.substring(t.length, str.length-t.length);
-    } else if (str.startsWith('$M')) {
-      if (sp.isOpen()) sp.write(data);
     } else {
       console.log('GENERAL TCP ' + PORT_GENERAL + ' - ' + data);
     }
@@ -44,10 +34,5 @@ function connectGeneral() {
     general.failed++;
   });
 }
-sp.on('open', connectGeneral);
-sp.on('data', function(data) {
-  if (typeof client !== "undefined" && client && !client.destroyed) {
-    client.write(data);
-  }
-});
-// connectGeneral();
+var TcpClient = require('multiwii-msp').TcpClient;
+var client = new TcpClient(DESKTOP_IP, 1001, '/dev/ttyS0', 115200, true);
