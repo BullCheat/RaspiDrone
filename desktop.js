@@ -1,9 +1,8 @@
 require('./common.js');
 var carrier = require('carrier');
-var msp = require('./msp');
-var msprotocol = new msp.Protocol();
 var BufferBuilder = require('buffer-builder');
 var io = require('socket.io').listen(1050);
+
 
 var server = net.createServer(function(socket) {
   console.log("GENERAL TCP " + PORT_GENERAL + " CONNECTED");
@@ -11,20 +10,9 @@ var server = net.createServer(function(socket) {
   //socket.setTimeout(2000);
   carrier.carry(socket, function(line) {
     console.log("GENERAL TCP " + PORT_GENERAL + " - " + line);
-    if (('' + line).startsWith("$M")) {
-      msprotocol.message_decode(line);
-    }
   });
   socket.setNoDelay(true);
   socket.write("Hello world!");
-  setTimeout(() => {
-    smsp(msp.codes.MSP_IDENT, msp.codes.MSP_IDENT);
-      smsp(msp.codes.MSP_IDENT, msp.codes.MSP_IDENT);
-        smsp(msp.codes.MSP_IDENT, msp.codes.MSP_IDENT);
-          smsp(msp.codes.MSP_IDENT, msp.codes.MSP_IDENT);
-            smsp(msp.codes.MSP_IDENT, msp.codes.MSP_IDENT);
-    smsp(msp.codes.MSP_STATUS, msp.codes.MSP_STATUS);
-  }, 100);
   socket.on('error', (err) => {
     console.log("GENERAL TCP " + PORT_GENERAL + " ===== " + err);
   });
@@ -49,19 +37,14 @@ io.on("connection", (socket) => {
     }
   });
 });
-function smsp (code,data) {
-  var buffer = msprotocol.message_encode(code,data);
-  if (typeof socket_general !== 'undefined' && socket_general && !socket_general.destroyed) {
-    socket_general.write(buffer, (res,err) => {
-      if (err) console.log(err);
-    });
-  }
-}
-msprotocol.on('*', function (name, data) {
-  // print out all messages coming from the port
-  data.code = msp.codes[name];
-  data.name = name;
-  data.ts = Date.now();
-  data = JSON.stringify(data, null, '  ');
-  console.log(data);
+
+var TcpServer = require('multiwii-msp').TcpServer;
+var tserver = new TcpServer(1001, true);
+tserver.on('register', (key,device) => {
+  device.on('open', () => {
+    var ident = device.ident();
+    console.log(ident);
+  });
+  device.on('update', () => {});
+  device.on('close', () => {});
 });
