@@ -1,45 +1,35 @@
 require('./common.js');
 var io = require('socket.io').listen(1050);
-
-io.on('connection', (socket) => {
-  socket.on('log', console.log);
-});
-
-var server = net.createServer(function(socket) {
-  console.log("GENERAL TCP " + PORT_GENERAL + " CONNECTED " + socket.remoteAddress);
-  global.socket_general = socket;
-  socket.setTimeout(2000);
-  socket.setKeepAlive(true);
-  carrier.carry(socket, function(line) {
-    console.log("GENERAL TCP " + PORT_GENERAL + " - " + line);
-  });
-  socket.setNoDelay(true);
-  //socket.write("Hello world!");
-  socket.on('error', (err) => {
-    console.log("GENERAL TCP " + PORT_GENERAL + " ===== " + err);
-  });
-  socket.on('timeout', () => {
-    console.log("GENERAL TCP " + PORT_GENERAL + " TIMEOUT");
-    socket.destroy();
+var parse = require('csv-parse');
+var towers = {};
+require('fs').readFile('bouygues.csv', 'ascii', (err,data) => {
+  if (err) console.log(err);
+  parse(data, (err, out) => {
+    for (var i in out) {
+      towers[out[i][4]] = [out[i][6], out[i][7]];
+    }
   });
 });
-
-server.on('error', (err) => {
-  console.log("GENERAL TCP " + PORT_GENERAL + " ===== " + err);
-});
-
-server.listen(PORT_GENERAL, '0.0.0.0', () => {
-  console.log("GENERAL TCP " + PORT_GENERAL + " BOUND");
-});
-
 var c = (x) => {
-  return 500 * (x+3);
+  return (500 * (x+3)).toFixed(0);
 };
 io.on("connection", (socket) => {
+  console.log('New connection');
+  socket.emit("log","log");
+  socket.on('log', console.log);
+  socket.on('data', (data) => {
+    io.to('browser').emit('data',data);
+    console.log(data);
+  });
   socket.on("trame", (trame) => {
-    if (typeof socket_general !== 'undefined' && socket_general && !socket_general.destroyed) {
-      //socket_general.write("trame" + JSON.stringify([parseInt(500*(4+trame.throttle)), parseInt(500*(4+trame.ailerons)), parseInt(500*(4+trame.profondeur)), parseInt(500*(4+trame.switch)), parseInt(500*(4+trame.molette))]));
-      socket_general.write("trame" + JSON.stringify({roll: c(trame.ailerons),pitch:c(trame.profondeur),yaw:c(0),throttle:c(trame.throttle),aux1:c(trame.switch),aux2:c(trame.molette),aux3:c(0),aux4:c(0)}) + '\n');
+    //socket_general.write("trame" + JSON.stringify([parseInt(500*(4+trame.throttle)), parseInt(500*(4+trame.ailerons)), parseInt(500*(4+trame.profondeur)), parseInt(500*(4+trame.switch)), parseInt(500*(4+trame.molette))]));
+    io.to('drone').emit("trame", {roll: c(trame.ailerons),pitch:c(trame.profondeur),yaw:c(0),throttle:c(trame.throttle),aux1:c(trame.switch),aux2:c(trame.molette),aux3:c(0),aux4:c(0)});
+  });
+  socket.on('drone', () => {socket.join('drone'); console.log('Drone')});
+  socket.on('browser', () => {socket.join('browser'); console.log('Browser')});
+  socket.on('cell_id', (cid) => {
+    if (towers.hasOwnProperty(cid)) {
+      io.to('browser').emit('cell', [cid, towers[cid]]);
     }
   });
 });
