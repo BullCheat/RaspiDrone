@@ -57,7 +57,8 @@ request.get('http://192.168.8.1/html/index.html', function (err,res,body) {
   if (err) console.log(err);
   setInterval(() => {
     request.get('http://192.168.8.1/api/device/signal', function(err,res,body) {
-      console.log({rsrq: rsrqRegex.exec(body)[1], snr: snrRegex.exec(body)[1], cid: cidRegex.exec(body)[1]});
+      socket.emit('data', {rsrq: rsrqRegex.exec(body)[1], snr: snrRegex.exec(body)[1]});
+      socket.emit('cell_id', cidRegex.exec(body)[1]);
     });
   }, 1000);
 });
