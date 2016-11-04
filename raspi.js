@@ -1,6 +1,6 @@
 require('./common.js');
-var serialport = require("serialport");
-var sp = new serialport('/dev/ttyAMA0', {baudrate:115200});
+// var serialport = require("serialport");
+if (typeof serialport !== "undefined") var sp = new serialport('/dev/ttyAMA0', {baudrate:115200});
 var socket = require('socket.io-client')('http://88.182.38.228:1050', {reconnectionDelay:10,reconnectionDelayMax:50});
 var currentFrame = Buffer.alloc(0);
 // var socket = io.connect('88.182.38.228:1050');
@@ -24,6 +24,7 @@ socket.on('connect', function() {
   socket.emit('drone');
   console.log('Connected');
 });
+if (typeof sp !== "undefined")
 sp.on('data', function(data) {
   currentFrame = Buffer.concat([currentFrame,data]);
   var res = getValid();
@@ -38,15 +39,29 @@ var send = function(code,data) {
   sp.write(buffer);
 };
 protocol.on('*', function(name,data) {
-  // console.log('here');
-  data.code = msp.codes[name];
-  socket.emit("log",data);
+  if (msp.codes[name] >= 106 && msp.codes[name] <= 109) socket.emit("data", data);
+  else socket.emit("log",data);
 });
 var refresh = function() {
-    send(101,[]);
-    // console.log('refreshing');
+  var r = [106,107,108,109];
+  for (var i in r) {
+    send(r[i], []);
+  }
 };
 setInterval(refresh, 100);
+var snrRegex = new RegExp("<sinr>(-?\\d+)dB<\\/sinr>");
+var rsrqRegex = new RegExp("<rsrq>(-?\\d+)dB<\\/rsrq>");
+var cidRegex = new RegExp("<cell_id>(\\d+)<\\/cell_id>");
+var request = require('request').defaults({jar:true});
+request.get('http://192.168.8.1/html/index.html', function (err,res,body) {
+  if (err) console.log(err);
+  setInterval(() => {
+    request.get('http://192.168.8.1/api/device/signal', function(err,res,body) {
+      console.log({rsrq: rsrqRegex.exec(body)[1], snr: snrRegex.exec(body)[1], cid: cidRegex.exec(body)[1]});
+    });
+  }, 1000);
+});
+//setInterval(refresh4G, 1000);
 /*function getDataLength(buffer) {
   if (buffer.length < 4) return 0;
   else return buffer.readUInt8(3);
