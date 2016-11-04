@@ -4,22 +4,47 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf8">
     <script src="socket.io.js"></script>
     <script src="jquery-3.1.1.js"></script>
+    <script src="js/jquery.flightindicators.js"></script>
+    <link rel="stylesheet" type="text/css" href="css/flightindicators.css" />
   </head>
   <body>
     <h1>Contrôle distant</h1>
-    Trames/seconde : <span class="trames">…</span><br>
+    <!--<span class="trames"></span>-->
+    <span id="attitude"></span>
+    <span id="heading"></span>
+    <span id="altitude"></span>
+    <span id="vertical-speed"></span>
+    <span id="speed"></span>
+
     <pre id="logbox">
     </pre>
 
     <script>
+    var INTERVAL = 20;
+    var lastAlt,lastAltUpdate,valeursAlt = [];
     var axis = ["direction","profondeur","molette",null,null,"ailerons","throttle"];
     var tps = [];
+    var settings = {size:250, pressure:0, showBox: false};
+    var attitude = $.flightIndicator('#attitude', 'attitude', settings);
+    var altitude = $.flightIndicator('#altitude', 'altimeter', settings);
+    var variometer = $.flightIndicator('#vertical-speed', 'variometer', settings);
+    var speed = $.flightIndicator('#speed', 'airspeed', settings);
+    var heading = $.flightIndicator('#heading', 'heading', settings);
     var socket = io.connect("127.0.0.1:1050", {'reconnection':true, 'reconnectionDelay': 100, 'reconnectionMaxDelay': 100, 'reconnectionAttempts':100000000});
     socket.on("connect", function() {
+      socket.emit('browser');
       log("socket.io connected");
     });
     socket.on("disconnect", function() {
       log("socket.io <b>disconnected</b>");
+    });
+    socket.on('data', (data) => {
+      if (data.altitude !== undefined) variometer.setVario(lissage(vspeed(data.altitude) || 0, valeursAlt, 3)/10);
+      if (data.altitude !== undefined) altitude.setAltitude(data.altitude*100);
+      if (data.speed !== undefined) speed.setAirSpeed(data.speed/50*3.6);
+      if (data.kinematicsZ !== undefined) heading.setHeading(data.kinematicsZ);
+      if (data.kinematicsX !== undefined) attitude.setRoll(-data.kinematicsX);
+      if (data.kinematicsY !== undefined) attitude.setPitch(-data.kinematicsY);
     });
     function findjoystick() {
       //if (joystick != null) return;
@@ -43,7 +68,6 @@
         for (var i in axis) {
           if (axis[i] != null) {
             trame[axis[i]] = joystick.axes[i];
-            console.log(axis[i] + " = " + trame[axis[i]]);
           }
         }
         trame.switch = joystick.buttons[0].value;
@@ -55,7 +79,7 @@
     function update() {
         window.requestAnimationFrame(transmit);
     }
-    setInterval(update, 50);
+    setInterval(update, INTERVAL);
     setInterval(() => {
       var ts = Date.now();
       var c = 0;
@@ -66,7 +90,7 @@
       }
       $(".trames").html(c);
       if (tps.length > 10000) tps.length = 0;
-    },50);
+    },INTERVAL);
     var joystick;
     function log(w) {
       $("#logbox").html($("#logbox").html() + "\n" + w);
@@ -79,7 +103,30 @@
     if (!compatible) throw "Object joystick bizzare " + gp;
     log ("Recherche d'un joystick…");
     findjoystick();
-
+    var vspeed = (n) => {
+      var now = Date.now();
+      if (!lastAltUpdate) {
+        lastAltUpdate = now;
+        return undefined;
+      }
+      var deltaT = now - lastAltUpdate;
+      var deltaD = n - lastAlt;
+      lastAltUpdate = now;
+      lastAlt = n;
+      var ret = (deltaD / (deltaT /1000));
+      return ret;
+    };
+    var lissage = (n, a, max) => {
+      if (a == null) a = [];
+      a.push(n);
+      while (a.length > max) {
+        a.shift();
+      }
+      var sum = 0;
+      for (var i in a) sum += a[i];
+      var avg = sum / max;
+      return avg;
+    };
     </script>
   </body>
 </html>
