@@ -6,31 +6,85 @@
     <script src="jquery-3.1.1.js"></script>
     <script src="js/jquery.flightindicators.js"></script>
     <link rel="stylesheet" type="text/css" href="css/flightindicators.css" />
+    <style>
+    .noLF {
+      margin-top: 0px;
+      margin-bottom: 0px;
+      padding-top: 0px;
+      padding-bottom: 0px;
+    }
+    meter {
+      width: calc(100% - 50pt);
+      height: 25px;
+      border 1px solid #ccc;
+      border-radius: 3px;
+    }
+    meter::-webkit-meter-bar {
+      box-shadow: 0 5px 5px -5px #999 inset;
+      animation: animate-stripes 1s linear infinite;
+      background-image: linear-gradient(
+        135deg,
+        transparent,
+        transparent 33%,
+        rgba(0,0,0,0.1) 33%,
+        rgba(0,0,0,0.1) 66%,
+        transparent 66%);
+      background-size: 50px 25px;
+    } meter::-webkit-meter-optimum-value {  background: #59d852;}
+ meter::-webkit-meter-even-less-good-value,meter::-webkit-meter-suboptimum-value {  background: #af0101;}​
+    @keyframes animate-stripes {
+      to {background-position: -50px 0;}
+    }
+    #map {
+      height: 500px;
+      width: 100%;
+    }
+    </style>
   </head>
   <body>
-    <h1>Contrôle distant</h1>
     <!--<span class="trames"></span>-->
-    <span id="attitude"></span>
-    <span id="heading"></span>
-    <span id="altitude"></span>
-    <span id="vertical-speed"></span>
-    <span id="speed"></span>
-
+    <p class="nolf">Qualité : <meter value=-20 low=-10 optimum=-3 high=-3 min=-20 max=-3 id="rsrq"></meter></p>
+    <p class="nolf">SNR     : <meter value=0 low=10 optimum=20 high=20 min=0 max=20 id="snr"></meter></p>
+    <p class="nolf">
+      <span id="heading"></span>
+      <span id="attitude"></span>
+      <span id="altitude"></span>
+      <span id="satCount"></span> SAT
+          Vent <input type="number" id="windSpeed" min=0 max=40> km/h
+       <input type="number" id="windHeading" min=0 max=355 step=5>°
+    </p>
+    <p class="nolf">
+      <span id="airSpeed"></span>
+      <span id="vertical-speed"></span>
+      <span id="altGPS"></span>
+      <span id="speed"></span>
+    </p>
+    <div id="map"></div>
     <pre id="logbox">
     </pre>
 
     <script>
     var INTERVAL = 20;
-    var lastAlt,lastAltUpdate,valeursAlt = [];
-    var axis = ["direction","profondeur","molette",null,null,"ailerons","throttle"];
+    var lastAntenne,lastAile,lastAlt,lastAltUpdate,hdg,valeursAlt = [],DEGTORAD = 0.0174533;
+    var axis = ["yaw","profondeur","molette",null,null,"ailerons","throttle"];
     var tps = [];
     var settings = {size:250, pressure:0, showBox: false};
     var attitude = $.flightIndicator('#attitude', 'attitude', settings);
     var altitude = $.flightIndicator('#altitude', 'altimeter', settings);
+    var altGPS = $.flightIndicator('#altGPS', 'altimeter', settings);
     var variometer = $.flightIndicator('#vertical-speed', 'variometer', settings);
     var speed = $.flightIndicator('#speed', 'airspeed', settings);
+    var speed = $.flightIndicator('#airSpeed', 'airspeed', settings);
     var heading = $.flightIndicator('#heading', 'heading', settings);
-    var socket = io.connect("127.0.0.1:1050", {'reconnection':true, 'reconnectionDelay': 100, 'reconnectionMaxDelay': 100, 'reconnectionAttempts':100000000});
+    var socket = io.connect("home.bullcheat.eu:1050", {'reconnection':true, 'reconnectionDelay': 100, 'reconnectionMaxDelay': 100, 'reconnectionAttempts':100000000});
+    $("#windSpeed").val(localStorage.getItem("windSpeed"));
+    $("#windHeading").val(localStorage.getItem("windHeading"));
+    $("#windSpeed").on("change", () => {
+      localStorage.setItem("windSpeed", $("#windSpeed").val());
+    });
+    $("#windHeading").on("change", () => {
+      localStorage.setItem("windHeading", $("#windHeading").val());
+    });
     socket.on("connect", function() {
       socket.emit('browser');
       log("socket.io connected");
@@ -39,12 +93,49 @@
       log("socket.io <b>disconnected</b>");
     });
     socket.on('data', (data) => {
-      if (data.altitude !== undefined) variometer.setVario(lissage(vspeed(data.altitude) || 0, valeursAlt, 3)/10);
+      if (data.altitude !== undefined) variometer.setVario(lissage(vspeed(data.altitude) || 0, valeursAlt, 5)/10);
       if (data.altitude !== undefined) altitude.setAltitude(data.altitude*100);
-      if (data.speed !== undefined) speed.setAirSpeed(data.speed/50*3.6);
-      if (data.kinematicsZ !== undefined) heading.setHeading(data.kinematicsZ);
+      if (data.speed !== undefined) {
+        var airSpeed = data.speed/50*3.6;
+        speed.setAirSpeed(airSpeed);
+        airSpeed += Math.cos((hdg - localStorage.getItem("windHeading") - 180)*DEGTORAD) * localStorage.getItem("windSpeed");
+        airSpeed.setAirSpeed(airSpeed);
+      }
+      if (data.kinematicsZ !== undefined) {
+        heading.setHeading(hdg = data.kinematicsZ);
+        var travers = localStorage.getItem("windSpeed") * Math.sin(hdg - localStorage.getItem("windHeading"));
+      }
       if (data.kinematicsX !== undefined) attitude.setRoll(-data.kinematicsX);
       if (data.kinematicsY !== undefined) attitude.setPitch(-data.kinematicsY);
+      if (data.rsrq !== undefined) $("#rsrq").attr('value', data.rsrq);
+      if (data.snr !== undefined) $("#snr").attr('value', data.snr);
+      if (data.fix !== undefined) {
+        $("#satCount").html(data.numSat);
+        if (data.fix) {
+          altGPS.setAltitude(data.alt*10);
+          var pos = {lat:data.lat/10000000,lng:data.lon/10000000};
+          var marker = new google.maps.Marker({
+            position: pos,
+            map: window.map,
+            title: 'Aile'
+          });
+          map.setCenter(pos);
+          if (lastAile) lastAile.setMap(null);
+          lastAile = marker;
+        }
+      }
+    });
+    socket.on('cell', (cell) => {
+      if (cell[1]) {
+        var pos =  {lat:cell[1][1], lng:cell[1][0]};
+        var marker = new google.maps.Marker({
+          position:pos,
+          map:window.map,
+          title: cell[0]
+        });
+        if (lastAntenne) lastAntenne.setMap(null);
+        lastAntenne = marker;
+      }
     });
     function findjoystick() {
       //if (joystick != null) return;
@@ -71,7 +162,7 @@
           }
         }
         trame.switch = joystick.buttons[0].value;
-        socket.emit("trame", trame);
+        if (socket.connected) socket.emit("trame", trame);
         var ts =Date.now();
         tps.push(ts);
       }
@@ -128,5 +219,11 @@
       return avg;
     };
     </script>
+    <script>
+    window.initMap = () =>{
+      window.map = new google.maps.Map(document.getElementById("map"), {zoom:16, center: {lat:47.6331385,lng:-2.0817125}, mapTypeId: google.maps.MapTypeId.HYBRID});
+    }
+    </script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBHYJnlPnY4pl0vfDiiyDxEJVkfeWGQ5cU&callback=initMap"></script>
   </body>
 </html>

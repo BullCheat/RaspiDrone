@@ -1,9 +1,9 @@
 require('./common.js');
-// var serialport = require("serialport");
-if (typeof serialport !== "undefined") var sp = new serialport('/dev/ttyAMA0', {baudrate:115200});
+var serialport = require("serialport");
+var sp;
+if (typeof serialport !== "undefined") sp = new serialport('/dev/ttyAMA0', {baudrate:115200});
 var socket = require('socket.io-client')('http://88.182.38.228:1050', {reconnectionDelay:10,reconnectionDelayMax:50});
 var currentFrame = Buffer.alloc(0);
-// var socket = io.connect('88.182.38.228:1050');
 
 function getValid() {
   while (currentFrame.length > 2 && (currentFrame.readUInt16BE(0) !== 0x244d || currentFrame.readUInt8(2) !== 0x3e)) {
@@ -39,8 +39,8 @@ var send = function(code,data) {
   sp.write(buffer);
 };
 protocol.on('*', function(name,data) {
-  if (msp.codes[name] >= 106 && msp.codes[name] <= 109) socket.emit("data", data);
-  else socket.emit("log",data);
+  if (msp.codes[name] >= 106 && msp.codes[name] <= 109 && socket.connected) socket.emit("data", data);
+  else if (socket.connected) socket.emit("log",data);
 });
 var refresh = function() {
   var r = [106,107,108,109];
@@ -57,8 +57,11 @@ request.get('http://192.168.8.1/html/index.html', function (err,res,body) {
   if (err) console.log(err);
   setInterval(() => {
     request.get('http://192.168.8.1/api/device/signal', function(err,res,body) {
-      socket.emit('data', {rsrq: rsrqRegex.exec(body)[1], snr: snrRegex.exec(body)[1]});
-      socket.emit('cell_id', cidRegex.exec(body)[1]);
+      rsrq = rsrqRegex.exec(body);
+      snr = snrRegex.exec(body);
+      cid =cidRegex.exec(body);
+      if (socket.connected) socket.emit('data', {rsrq: rsrq ? rsrq[1] : -100, snr: snr ? snr[1]: -100});
+      if (socket.connected) socket.emit('cell_id', cid ? cid[1] : 0);
     });
   }, 1000);
 });
