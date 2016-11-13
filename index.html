@@ -80,10 +80,18 @@
     $("#windSpeed").val(localStorage.getItem("windSpeed"));
     $("#windHeading").val(localStorage.getItem("windHeading"));
     $("#windSpeed").on("change", () => {
-      localStorage.setItem("windSpeed", $("#windSpeed").val());
+      socket.emit("windSpeed", $("#windSpeed").val());
     });
     $("#windHeading").on("change", () => {
-      localStorage.setItem("windHeading", $("#windHeading").val());
+      socket.emit("windHeading", $("#windHeading").val());
+    });
+    socket.on("windSpeed", (s) => {
+      localStorage.setItem("windSpeed", s);
+      $("#windSpeed").val(s);
+    });
+    socket.on("windHeading", (s) => {
+      localStorage.setItem("windHeading", s);
+      $("#windHeading").val(s);
     });
     socket.on("connect", function() {
       socket.emit('browser');

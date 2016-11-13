@@ -25,6 +25,8 @@ io.on("connection", (socket) => {
   });
   socket.on('drone', () => {socket.join('drone'); console.log('Drone')});
   socket.on('browser', () => {socket.join('browser'); console.log('Browser')});
+  socket.on('windSpeed', (s) => {io.to("browser").emit('windSpeed', s)});
+  socket.on('windHeading', (s) => {io.to("browser").emit('windHeading', s)});
   socket.on('cell_id', (cid) => {
     if (towers.hasOwnProperty(cid)) {
       io.to('browser').emit('cell', [cid, towers[cid]]);
